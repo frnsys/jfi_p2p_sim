@@ -1,0 +1,21 @@
+{
+  "name": "jfi_p2p_sim",
+  "version": "0.0.0",
+  "main": "webpack.config.js",
+  "scripts": {
+    "start": "webpack-dev-server --watch --progress --mode=development"
+  },
+  "dependencies": {
+    "@babel/polyfill": "^7.0.0",
+    "three": "^0.97.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.1.2",
+    "@babel/plugin-proposal-class-properties": "^7.1.0",
+    "@babel/preset-env": "^7.1.0",
+    "babel-loader": "^8.0.4",
+    "webpack": "^4.21.0",
+    "webpack-cli": "^3.1.2",
+    "webpack-dev-server": "^3.1.14"
+  }
+}
