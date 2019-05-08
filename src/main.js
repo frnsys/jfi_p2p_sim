@@ -1,79 +1,75 @@
 import Canvas from './canvas';
-import { ProgressBar } from './ui';
-
-const config = {
-  n: 100,           // Number of nodes
-  pMalicious: 0.01, // Proportion of malicious nodes
-  initRandom: 20,   // Initial nodes to ping
-
-  nRuns: 50,        // Number of runs
-  nTrials: 25      // Number of trials per run
-};
-
-let nodeidx = {};
-let oldnode = {};
 
 let view = new Canvas('canvas');
 
-function onRunStart(nodes) {
-  view.reset();
-  nodes.forEach((n) => {
-    let type = n.malicious ? 'sybil' : 'peer';
-    let x = randomRangeFloat(bounds.x[0], bounds.x[1]);
-    let y = randomRangeFloat(bounds.y[0], bounds.y[1]);
-    view.addNode(type, x, y);
-  });
+function getInputValue(id) {
+  let el = document.getElementById(id);
+  return el.checkValidity() ? parseInt(el.value) : null;
 }
-
-function onTrialStart(targetNode) {
-  // if (Object.keys(oldnode).length > 0) {
-  //   let node = nodeidx[oldnode.id];
-  //   if (node) {
-  //     node.type = oldnode.type;
-  //   }
-  // }
-  // let node = nodeidx[targetNode.id];
-  // oldnode.id = targetNode.id;
-  // oldnode.type = node.baseType;
-  // node.type = 'target';
-}
-
-function toPercent(n, total) {
-  return `${(n/total * 100).toFixed(1)}%`;
-}
-
-const frame = document.getElementById('sim');
 
 if (window.Worker) {
   const worker = new Worker('/assets/worker.js');
-  const progressBar = new ProgressBar();
-  frame.appendChild(progressBar.element);
   worker.onmessage = (e) => {
     const d = e.data;
     switch (d.message) {
-      case 'kademliaRunComplete':
-        progressBar.width = (d.i+1)/config.nRuns * 100;
-        progressBar.meta = `Run ${d.i+1} (${toPercent(d.successes, config.nTrials)})`;
-        nodeidx = {};
+      case 'kademlia:created':
+        view.renderNetwork(d.network);
+        worker.postMessage({ message: 'kademlia:query', id: d.id });
         break;
-      case 'kademliaRunStart':
-        onRunStart(d.nodes);
-        break;
-      case 'kademliaTrialStart':
-        onTrialStart(d.targetNode);
+      case 'kademlia:queried':
+        view.annotate(d.results.targetNode, 'target');
+        view.annotate(d.results.sourceNode, 'source');
+        view.ctx.lineWidth = 0.8;
+        let animation = setInterval(() => {
+          let step = d.results.searchSequence.shift();
+          if (!step) {
+            clearInterval(animation);
+            view.annotate(d.results.foundNode, 'found');
+            let resultEl = document.getElementById('result');
+            resultEl.innerText = d.results.success ? 'Success' : 'Failure';
+            resultEl.style.background = d.results.success ? '#0eb553' : '#ef2626';
+          } else {
+            let node = view.nodes[step.from];
+            step.to.forEach((n) => {
+              let id = view.nodesByAddress[n.address];
+              let node_ = view.nodes[id];
+              var grad= view.ctx.createLinearGradient(node.x, node.y, node_.x, node_.y);
+              grad.addColorStop(0, '#065114');
+              grad.addColorStop(1, '#63ed7c');
+              view.ctx.strokeStyle = grad;
+              view.ctx.beginPath();
+              view.ctx.moveTo(node.x, node.y);
+              view.ctx.lineTo(node_.x, node_.y);
+              view.ctx.stroke();
+            });
+          }
+        }, 100);
         break;
     }
   };
-  worker.postMessage({ message: 'kademlia', config });
-}
 
+  document.getElementById('run').addEventListener('click', () => {
+    let id = 'main-example';
+    let keys = ['n', 'cost', 'budget'];
+    let opts = keys.reduce((acc, k) => {
+      acc[k] = getInputValue(k);
+      return acc;
+    }, {});
 
-const padding = 10;
-let bounds = {
-  x: [padding, view.width-padding],
-  y: [padding, view.height-padding]
-};
+    let valid = Object.values(opts).every((v) => v !== null);
+    if (!valid) return;
 
-function randomRangeFloat(min, max) {
-  return (Math.random() * (max - min)) + min;
+    let nMalicious = Math.floor(opts.budget/opts.cost);
+    let config = {
+      n: opts.n,
+      nMalicious: nMalicious,
+      initRandom: 2     // Initial nodes to ping
+    }
+    console.log(config);
+
+    let resultEl = document.getElementById('result');
+    resultEl.innerText = 'Running...';
+    resultEl.style.background = '#aaaaaa';
+    worker.postMessage({ message: 'kademlia:new', id, config });
+  });
 }

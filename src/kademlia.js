@@ -5,7 +5,7 @@
 // - We don't use IP addresses or ports, we work with node objects directly
 
 const config = {
-  k: 20,            // Bucket size
+  k: 5,             // Bucket size
   alpha: 3,         // Simultaneous lookups
   idBits: 16        // ID bits
 };
@@ -52,6 +52,10 @@ class BucketSet {
     this.buckets = [...Array(config.idBits)].map((_) => []);
   }
 
+  peers() {
+    return this.buckets.reduce((acc, bucket) => acc.concat(bucket), []);
+  }
+
   insert(peer) {
     let bucketId = largestDifferingBit(this.peer.id, peer.id);
     let bucket = this.buckets[bucketId];
@@ -65,7 +69,7 @@ class BucketSet {
   }
 
   nearest(peer, n) {
-    let peers = this.buckets.reduce((acc, bucket) => acc.concat(bucket), []);
+    let peers = this.peers();
     peers = sortDistance(peers, peer);
     return n ? peers.slice(0, n) : peers;
   }
@@ -90,7 +94,7 @@ class Peer {
   constructor(id, malicious) {
     this.malicious = malicious === undefined ? false : malicious;
     this.id = id || randomBits(config.idBits);
-    this.rpc = new RPC(this, malicious);
+    this.rpc = new RPC(this);
     this.buckets = new BucketSet(this);
 
     // Address is just for identifying
@@ -111,10 +115,19 @@ class Peer {
 
   findNearest(peer) {
     let start = this.buckets.nearest(peer, config.alpha);
+    let searchSequence = [{
+      from: this.address,
+      to: start.map((p) => ({id: p.id, address: p.address}))
+    }];
+
     let results = start.map((neighb) => {
       let best = [];
       let candidates = neighb.rpc.find(this, peer);
       candidates = sortDistance(candidates, peer).slice(0, config.k);
+      searchSequence.push({
+        from: neighb.address,
+        to: candidates.map((p) => ({id: p.id, address: p.address}))
+      });
 
       // Iterate until best results are stable
       // This is a hacky method for array equality,
@@ -122,19 +135,30 @@ class Peer {
       while (JSON.stringify(candidates.map(c => c.id)) !== JSON.stringify(best.map(c => c.id))) {
         best = candidates;
         candidates = candidates
-          .map((c) => c.rpc.find(this, peer))
+          .map((c) => {
+            let peers = c.rpc.find(this, peer);
+            searchSequence.push({
+              from: c.id,
+              to: [...new Set(peers.map((p) => ({id: p.id, address: p.address})))]
+            });
+            return peers;
+          })
           .flat();
         candidates = [...new Set(candidates)];
         candidates = sortDistance(candidates, peer).slice(0, config.k);
       }
       return best;
     }).flat();
-    return sortDistance(results, peer).slice(0, config.k);
+    return {
+      peers: sortDistance(results, peer).slice(0, config.k),
+      searchSequence
+    };
   }
 
   find(peer) {
     let results = this.findNearest(peer);
-    results = results.filter((p) => p.id == peer.id);
+    let searchSequence = results.searchSequence;
+    results = results.peers.filter((p) => p.id == peer.id);
 
     // There may be malicious results
     // Take the majority result
@@ -142,16 +166,15 @@ class Peer {
       acc[p.address] = (acc[p.address] || 0) + 1;
       return acc;
     }, {});
-    let result = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
-    return result;
+    let address = Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+    return {address, searchSequence};
   }
 }
 
 // Mock RPCs
 class RPC {
-  constructor(parentPeer, malicious) {
+  constructor(parentPeer) {
     this.peer = parentPeer;
-    this.malicious = malicious;
   }
 
   ping(requestingPeer) {
@@ -166,9 +189,10 @@ class RPC {
   find(requestingPeer, targetPeer) {
     this.peer.buckets.insert(requestingPeer);
 
-    if (this.malicious) {
-      let peer = new Peer(targetPeer.id);
-      peer.address = this.address;
+    if (this.peer.malicious) {
+      // TODO this isn't quite working, b/c the peer uses the id, not the address
+      let peer = new Peer(targetPeer.id, true);
+      peer.address = this.peer.address;
       return [peer];
     }
 

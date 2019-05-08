@@ -6,22 +6,68 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>p2p</title>
   <style>
+    * {
+        box-sizing: border-box;
+    }
+    html, body {
+        font-family: 'monospace';
+    }
     .sim {
         width: 400px;
         height: 600px;
         margin: 0 auto;
     }
+    .stage {
+        position: relative;
+        height: 400px;
+    }
     canvas {
+        border: 6px solid black;
+    }
+    .opts {
+        display: flex;
+    }
+    .opts > div {
+        flex: 1;
+    }
+    .opts > div:last-child input {
+        border-right: 1px solid black;
+    }
+    input {
         border: 1px solid black;
+        border-right: none;
+    }
+    button {
+        width: 100%;
+        border: 1px solid black;
+        padding: 0.5em;
+        cursor: pointer;
+    }
+    #result {
+        color: #fff;
+        text-align: center;
+        padding: 0.25em;
     }
   </style>
 </head>
 <body>
     <main id="main">
         <div id="sim" class="sim">
-            <canvas id="canvas" height="400" width="400"></canvas>
+            <div class="opts">
+                <div><label>Nodes</label> <input id="n" value="50" type="number" min="10"></div>
+                <div><label>Node cost</label> <input id="cost" type="number" value="1" min="1"></div>
+                <div><label>Adversary budget</label> <input id="budget" type="number" value="10" min="0"></div>
+            </div>
+            <button id="run">Run</button>
+            <div class="stage">
+                <canvas id="canvas" height="400" width="400"></canvas>
+                <canvas id="annotations" height="400" width="400" style="position:absolute;top:0;left:0;"></canvas>
+            </div>
+            <div id="result">
+            </div>
         </div>
     </main>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/springy/2.8.0/springy.min.js"></script>
     <script src="assets/main.js"></script>
 </body>
 </html>
