@@ -1,66 +1,78 @@
 const nodeTypes = {
   'peer': '🖥️',
-  'sybil': '👹',
-  'target': '🎯',
-  'source': '📍'
+  'sybil': '👹'
 };
 const fontSize = 16;
+const scale = 36;
+const dpr = window.devicePixelRatio || 1;
 
 function randomRangeFloat(min, max) {
   return (Math.random() * (max - min)) + min;
 }
 
 class Canvas {
-  constructor(id) {
-    this.element = document.getElementById(id);
-    let width = this.element.width;
-    let height = this.element.height;
-    let dpr = window.devicePixelRatio || 1;
-    this.element.width = width * dpr;
-    this.element.height = height * dpr;
-    this.element.style.width = `${width}px`;
-    this.element.style.height = `${height}px`;
-    this.ctx = this.element.getContext('2d');
-    this.ctx.scale(dpr, dpr);
-    this.ctx.lineWidth = 0.2;
-    this.ctx.textAlign = 'center';
-    this.width = width;
-    this.height = height;
+  constructor(stageElement) {
+    this.stage = stageElement;
+    this.width = this.stage.clientWidth;
+    this.height = this.stage.clientHeight;
 
-    this.annoElement = document.getElementById('annotations');
-    this.annoElement.width = width * dpr;
-    this.annoElement.height = height * dpr;
-    this.annoElement.style.width = `${width}px`;
-    this.annoElement.style.height = `${height}px`;
-    this.annoCtx = this.annoElement.getContext('2d');
-    this.annoCtx.scale(dpr, dpr);
-    this.annoCtx.lineWidth = 0.2;
-    this.annoCtx.textAlign = 'center';
+    this.layers = {
+      graph: this.initLayer(),
+      annos: this.initLayer()
+    };
   }
 
-  addNode(type, x, y) {
-    this.ctx.font = `normal ${fontSize}px Arial`;
-    this.ctx.fillText(nodeTypes[type], x, y);
+  initLayer() {
+    let canvas = document.createElement('canvas');
+    canvas.width = this.width * dpr;
+    canvas.height = this.height * dpr;
+    canvas.style.width = `${this.width}px`;
+    canvas.style.height = `${this.height}px`;
+    let ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.textAlign = 'center';
+    this.stage.appendChild(canvas);
+    return ctx;
+  }
+
+  drawNode(type, x, y) {
+    this.layers.graph.font = `normal ${fontSize}px Arial`;
+    this.layers.graph.fillText(nodeTypes[type], x, y);
+  }
+
+  drawEdge(from, to, fromColor, toColor, width) {
+    let ctx = this.layers.graph;
+    let grad = ctx.createLinearGradient(from.x, from.y, to.x, to.y);
+    grad.addColorStop(0, fromColor);
+    grad.addColorStop(1, toColor);
+    ctx.lineWidth = width;
+    ctx.strokeStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
   }
 
   annotate(node, text) {
     let s = 6;
+    let ctx = this.layers.annos;
     let {x, y} = this.nodes[node.id];
     y -= fontSize/2;
-    this.annoCtx.fillStyle = '#000';
-    this.annoCtx.beginPath();
-    this.annoCtx.moveTo(x, y);
-    this.annoCtx.lineTo(x-s, y-s);
-    this.annoCtx.lineTo(x+s, y-s);
-    this.annoCtx.fill();
+
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x-s, y-s);
+    ctx.lineTo(x+s, y-s);
+    ctx.fill();
 
     let size = 12;
     let padding = 4;
-    let textWidth = this.annoCtx.measureText(text).width + padding*2;
-    this.annoCtx.fillRect(x-textWidth/2, y-6-size, textWidth, size);
-    this.annoCtx.fillStyle = '#fff';
-    this.annoCtx.font = `normal ${size}px Arial`;
-    this.annoCtx.fillText(text, x, y-6-2);
+    let textWidth = ctx.measureText(text).width + padding*2;
+    ctx.fillRect(x-textWidth/2, y-6-size, textWidth, size);
+    ctx.fillStyle = '#fff';
+    ctx.font = `normal ${size}px Arial`;
+    ctx.fillText(text, x, y-6-2);
   }
 
   renderNetwork(network) {
@@ -96,9 +108,9 @@ class Canvas {
     // Compute layout
     let layout = new Springy.Layout.ForceDirected(
       graph,
-      400.0, // Spring stiffness
-      400.0, // Node repulsion
-      0.5 // Damping
+      400.0,  // Spring stiffness
+      400.0,  // Node repulsion
+      0.5     // Damping
     );
 
     // Adjust node positions
@@ -106,8 +118,8 @@ class Canvas {
       let id = node.data.id;
       let n = this.nodes[id].node;
       let {x, y} = point.p;
-      x *= 36;
-      y *= 36;
+      x *= scale;
+      y *= scale;
       x += this.width/2;
       y += this.height/2;
       this.nodes[id].x = x;
@@ -115,16 +127,12 @@ class Canvas {
     });
 
     // Draw edges
-    this.ctx.strokeStyle = '#cccccc';
     network.nodes.forEach((n) => {
       let peers = n.buckets.buckets.reduce((acc, bucket) => acc.concat(bucket), []);
       let node = this.nodes[n.id];
       peers.forEach((n_) => {
         let node_ = this.nodes[n_.id];
-        this.ctx.beginPath();
-        this.ctx.moveTo(node.x, node.y);
-        this.ctx.lineTo(node_.x, node_.y);
-        this.ctx.stroke();
+        this.drawEdge(node, node_, '#aaaaaa', '#eeeeee', 0.2);
       });
     });
 
@@ -132,13 +140,14 @@ class Canvas {
     network.nodes.forEach((n) => {
       n = this.nodes[n.id];
       let type = n.node.malicious ? 'sybil' : 'peer';
-      this.addNode(type, n.x, n.y);
+      this.drawNode(type, n.x, n.y);
     });
   }
 
   reset() {
-    this.ctx.clearRect(0, 0, this.element.width, this.element.height);
-    this.annoCtx.clearRect(0, 0, this.annoElement.width, this.annoElement.height);
+    Object.values(this.layers).forEach((ctx) => {
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    });
   }
 }
 

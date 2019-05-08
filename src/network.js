@@ -44,6 +44,7 @@ class P2PNetwork {
     let sourceNode = randomChoice(nonmalicious);
     let targetNode = randomChoice(nonmalicious);
 
+    // Ensure the target and source aren't the same node
     while (targetNode == sourceNode) {
       targetNode = randomChoice(nonmalicious);
     }

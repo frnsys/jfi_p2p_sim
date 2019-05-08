@@ -138,7 +138,7 @@ class Peer {
           .map((c) => {
             let peers = c.rpc.find(this, peer);
             searchSequence.push({
-              from: c.id,
+              from: c.address,
               to: [...new Set(peers.map((p) => ({id: p.id, address: p.address})))]
             });
             return peers;

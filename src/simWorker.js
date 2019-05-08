@@ -7,21 +7,21 @@ onmessage = function(e) {
 
   let network = networks[d.id];
   switch (d.message) {
-    case 'kademlia:new':
+    case 'new':
       network = new P2PNetwork(d.config);
       postMessage({
         id: d.id,
-        message: 'kademlia:created',
+        message: 'created',
         network: network
       });
       networks[d.id] = network;
       break;
-    case 'kademlia:query':
+    case 'query':
       if (network) {
         let results = network.randomQuery();
         postMessage({
           id: d.id,
-          message: 'kademlia:queried',
+          message: 'queried',
           results: results
         });
       }
