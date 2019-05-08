@@ -15,8 +15,10 @@ function shuffleArray(array) {
 
 class P2PNetwork {
   constructor(config) {
+    this.config = config;
     const nodes = [];
     const bootstrapNode = new Peer();
+    const maliciousBootstrapNode = new Peer(null, true);
 
     [...Array(config.n + config.nMalicious).keys()].forEach((i) => {
       let peer = new Peer(null, i < config.nMalicious);
@@ -26,16 +28,43 @@ class P2PNetwork {
     shuffleArray(nodes);
 
     nodes.forEach((peer) => {
-      peer.bootstrap(bootstrapNode);
-      // Connect to other random nodes
-      if (nodes.length > 0) {
-        [...Array(config.initRandom)].forEach((_) => {
-          let node = randomChoice(nodes);
-          node.rpc.ping(peer);
-        });
+      if (config.social && peer.malicious) {
+        peer.bootstrap(maliciousBootstrapNode);
+      } else {
+        peer.bootstrap(bootstrapNode);
       }
+
+      // Connect to other random nodes
+      [...Array(config.initRandom)].forEach((_) => {
+        let node;
+        if (config.social) {
+          let malicious = nodes.filter((n) => n.malicious);
+          let nonmalicious = nodes.filter((n) => !n.malicious);
+          if (peer.malicious) {
+            // Roll for gullible nonmalicious peers
+            let nAttempts = Math.floor(nonmalicious.length * config.attemptFriendPercent);
+            [...Array(nAttempts)].forEach((_) => {
+              if (Math.random() < config.gullibility) {
+                let n= randomChoice(nonmalicious);
+                n.rpc.ping(peer);
+              }
+            });
+
+            // Connect to other malicious peers
+            node = randomChoice(malicious);
+          } else {
+            node = randomChoice(nonmalicious);
+          }
+
+        } else {
+          node = randomChoice(nodes);
+        }
+        node.rpc.ping(peer);
+      });
     });
 
+    nodes.push(bootstrapNode);
+    nodes.push(maliciousBootstrapNode);
     this.nodes = nodes;
   }
 

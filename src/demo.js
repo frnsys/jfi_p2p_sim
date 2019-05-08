@@ -5,7 +5,7 @@ function getInputValue(id) {
   return el.checkValidity() ? parseInt(el.value) : null;
 }
 
-function setupDemo(id) {
+function setupDemo(id, social) {
   let element = document.getElementById(id);
   let view = new Canvas(element.querySelector('.stage'));
   let inputs = [...element.querySelectorAll('.opts input')].reduce((acc, inp) => {
@@ -13,7 +13,10 @@ function setupDemo(id) {
     return acc;
   }, {});
   let result = element.querySelector('.result');
+  let runButton = element.querySelector('.run');
   let worker = new Worker('/assets/worker.js');
+
+  let ready = true;
 
   worker.onmessage = (e) => {
     const d = e.data;
@@ -22,6 +25,8 @@ function setupDemo(id) {
       case 'created':
         view.renderNetwork(d.network);
         worker.postMessage({ message: 'query', id: d.id });
+        ready = false;
+        runButton.disabled = true;
         break;
 
       // Visualize query search
@@ -32,6 +37,8 @@ function setupDemo(id) {
         let animation = setInterval(() => {
           let step = d.results.searchSequence.shift();
           if (!step) {
+            ready = true;
+            runButton.disabled = false;
             clearInterval(animation);
             view.annotate(d.results.foundNode, 'found');
             result.innerText = d.results.success ? 'Success' : 'Failure';
@@ -49,26 +56,31 @@ function setupDemo(id) {
     }
   };
 
-  element.querySelector('.run').addEventListener('click', () => {
-    let opts = Object.keys(inputs).reduce((acc, k) => {
-      let inp = inputs[k];
-      acc[k] = inp.checkValidity() ? parseInt(inp.value) : null;
-      return acc;
-    }, {});
+  runButton.addEventListener('click', () => {
+    if (ready) {
+      let opts = Object.keys(inputs).reduce((acc, k) => {
+        let inp = inputs[k];
+        acc[k] = inp.checkValidity() ? (inp.step == '0.1' ? parseFloat(inp.value): parseInt(inp.value)) : null;
+        return acc;
+      }, {});
 
-    let valid = Object.values(opts).every((v) => v !== null);
-    if (!valid) return;
+      let valid = Object.values(opts).every((v) => v !== null);
+      if (!valid) return;
 
-    let nMalicious = Math.floor(opts.budget/opts.cost);
-    let config = {
-      n: opts.n,
-      nMalicious: nMalicious,
-      initRandom: 2     // Initial nodes to ping
+      let nMalicious = opts.nMalicious ? opts.nMalicious : Math.floor(opts.budget/opts.cost);
+      let config = {
+        social: social,
+        n: opts.n,
+        nMalicious: nMalicious,
+        attemptFriendPercent: 0.2,     // Percent of nonmalicious peers a malicious peer tries to friend
+        gullibility: opts.gullibility, // Probability a nonmalicious peer accepts a malicious peer
+        initRandom: 2                  // Initial nodes to ping
+      }
+
+      result.innerText = 'Running...';
+      result.style.background = '#aaaaaa';
+      worker.postMessage({ message: 'new', id, config });
     }
-
-    result.innerText = 'Running...';
-    result.style.background = '#aaaaaa';
-    worker.postMessage({ message: 'new', id, config });
   });
 }
 

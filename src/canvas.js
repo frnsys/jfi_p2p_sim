@@ -1,8 +1,10 @@
+import Springy from 'springy';
+
 const nodeTypes = {
   'peer': '🖥️',
   'sybil': '👹'
 };
-const fontSize = 16;
+const fontSize = 20;
 const dpr = window.devicePixelRatio || 1;
 
 function randomRangeFloat(min, max) {
@@ -81,12 +83,16 @@ class Canvas {
 
     // Construct graph
     let graph = new Springy.Graph();
+
+    let nonmalicious = new Springy.Graph();
+    let malicious = new Springy.Graph();
     network.nodes.forEach((n) => {
       if (!(n.id in this.nodes)) {
         this.nodesByAddress[n.address] = n.id;
         this.nodes[n.id] = {
           node: n,
-          graphNode: graph.newNode({id: n.id})
+          graphNode: graph.newNode({id: n.id}),
+          pgraphNode: (n.malicious ? malicious : nonmalicious).newNode({id: n.id})
         };
       }
       let peers = n.buckets.buckets.reduce((acc, bucket) => acc.concat(bucket), []);
@@ -95,42 +101,83 @@ class Canvas {
           this.nodesByAddress[n_.address] = n_.id;
           this.nodes[n_.id] = {
             node: n_,
-            graphNode: graph.newNode({id: n_.id})
+            graphNode: graph.newNode({id: n_.id}),
+            pgraphNode: (n_.malicious ? malicious : nonmalicious).newNode({id: n_.id})
           };
+
         }
         graph.newEdge(
           this.nodes[n.id].graphNode,
           this.nodes[n_.id].graphNode);
+        if(n.malicious == n_.malicious) {
+          (n_.malicious ? malicious : nonmalicious).newEdge(
+            this.nodes[n.id].graphNode,
+            this.nodes[n_.id].graphNode);
+        }
       });
     });
 
-    // Compute layout
-    let layout = new Springy.Layout.ForceDirected(
-      graph,
-      400.0,  // Spring stiffness
-      400.0,  // Node repulsion
-      0.5     // Damping
-    );
-    layout.tick(0.01);
-    let bb = layout.getBoundingBox();
-    let padding = 40;
-    let width = bb.topright.x - bb.bottomleft.x;
-    let height = bb.topright.y - bb.bottomleft.y;
-    let scaleX = (this.width - padding*2)/width;
-    let scaleY = (this.height - padding*2)/height;
+    let partitioned = network.config.social;
+    if (partitioned) {
+      [nonmalicious, malicious].forEach((graph, i) => {
+        // Compute layout
+        let layout = new Springy.Layout.ForceDirected(
+          graph,
+          400.0,  // Spring stiffness
+          400.0,  // Node repulsion
+          0.5     // Damping
+        );
+        layout.tick(0.01);
+        let bb = layout.getBoundingBox();
+        let padding = 20;
+        let width = bb.topright.x - bb.bottomleft.x;
+        let height = bb.topright.y - bb.bottomleft.y;
+        let scaleX = (this.width/2 - padding*2)/width;
+        let scaleY = (this.height - padding*2)/height;
 
-    // Adjust node positions
-    layout.eachNode((node, point) => {
-      let id = node.data.id;
-      let n = this.nodes[id].node;
-      let {x, y} = point.p;
-      x *= scaleX;
-      y *= scaleY;
-      x += this.width/2;
-      y += this.height/2;
-      this.nodes[id].x = x;
-      this.nodes[id].y = y;
-    });
+        // Adjust node positions
+        layout.eachNode((node, point) => {
+          let id = node.data.id;
+          let n = this.nodes[id].node;
+          let {x, y} = point.p;
+          x *= scaleX;
+          y *= scaleY;
+          x += (this.width/2 * i) + this.width/4;
+          y += this.height/2;
+          this.nodes[id].x = x;
+          this.nodes[id].y = y;
+        });
+      });
+
+    } else {
+      // Compute layout
+      let layout = new Springy.Layout.ForceDirected(
+        graph,
+        400.0,  // Spring stiffness
+        400.0,  // Node repulsion
+        0.5     // Damping
+      );
+      layout.tick(0.01);
+      let bb = layout.getBoundingBox();
+      let padding = 40;
+      let width = bb.topright.x - bb.bottomleft.x;
+      let height = bb.topright.y - bb.bottomleft.y;
+      let scaleX = (this.width - padding*2)/width;
+      let scaleY = (this.height - padding*2)/height;
+
+      // Adjust node positions
+      layout.eachNode((node, point) => {
+        let id = node.data.id;
+        let n = this.nodes[id].node;
+        let {x, y} = point.p;
+        x *= scaleX;
+        y *= scaleY;
+        x += this.width/2;
+        y += this.height/2;
+        this.nodes[id].x = x;
+        this.nodes[id].y = y;
+      });
+    }
 
     // Draw edges
     network.nodes.forEach((n) => {

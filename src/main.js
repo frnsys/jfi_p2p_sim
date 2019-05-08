@@ -1,4 +1,4 @@
 import setupDemo from './demo';
 
-setupDemo('kademlia');
-setupDemo('social');
+setupDemo('kademlia', false);
+setupDemo('social', true);
