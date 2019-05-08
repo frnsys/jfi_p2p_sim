@@ -2,6 +2,8 @@
 
 Demonstrates routing under attack in a simplified Kademlia network and a social network variant.
 
+This is a really simplified version to provide an intuition around Sybil attacks for new readers.
+
 To run:
 
 ```
