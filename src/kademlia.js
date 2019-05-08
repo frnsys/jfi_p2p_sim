@@ -7,37 +7,23 @@
 const config = {
   k: 20,            // Bucket size
   alpha: 3,         // Simultaneous lookups
-  idBits: 16,       // ID bits
-  n: 200,           // Number of nodes
-  pMalicious: 0.05, // Proportion of malicious nodes
-  initRandom: 20,   // Initial nodes to ping
-  nTrials: 200      // Number of trials
+  idBits: 16        // ID bits
 };
 
-function randomBits() {
-  let u;
-  switch (config.idBits) {
-    case 8:
-      u = new Uint8Array(1);
-      break;
-    case 16:
-      u = new Uint16Array(1);
-      break;
-    case 32:
-      u = new Uint32Array(1);
-      break;
-  }
-  return crypto.getRandomValues(u)[0];
+// Assume bits <= 32
+function randomBits(bits) {
+  let u = new Uint32Array(1);
+  return crypto.getRandomValues(u)[0] % 2**bits;
+}
+
+function randomRange(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
 }
 
 function bitsToHex(bits) {
   let str = bits.toString(16).toUpperCase();
   let base = [...Array(config.idBits/4)].map((_) => '0').join('');
   return base.slice(str.length) + str;
-}
-
-function randomChoice(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 function sortDistance(nodes, peer) {
@@ -61,12 +47,13 @@ function largestDifferingBit(nodeA, nodeB) {
 }
 
 class BucketSet {
-  constructor() {
+  constructor(peer) {
+    this.peer = peer;
     this.buckets = [...Array(config.idBits)].map((_) => []);
   }
 
   insert(peer) {
-    let bucketId = largestDifferingBit(this.id, peer.id);
+    let bucketId = largestDifferingBit(this.peer.id, peer.id);
     let bucket = this.buckets[bucketId];
 
     if (bucket.includes(peer)) {
@@ -82,27 +69,47 @@ class BucketSet {
     peers = sortDistance(peers, peer);
     return n ? peers.slice(0, n) : peers;
   }
+
+  refresh() {
+    this.buckets.forEach((bucket, i) => {
+      if (bucket.length == 0) {
+        let randId;
+        if (i == 0) {
+          randId = Math.round(Math.random());
+        } else {
+          randId = randomRange(2**i, 2**(i+1));
+        }
+        let dummyPeer = new Peer(randId);
+        this.peer.findNearest(dummyPeer);
+      }
+    });
+  }
 }
 
 class Peer {
   constructor(id, malicious) {
-    this.id = id || randomBits();
+    this.malicious = malicious === undefined ? false : malicious;
+    this.id = id || randomBits(config.idBits);
     this.rpc = new RPC(this, malicious);
-    this.buckets = new BucketSet();
+    this.buckets = new BucketSet(this);
 
     // Address is just for identifying
     // fake vs real peers
-    this.address = randomBits();
+    this.address = bitsToHex(randomBits(config.idBits));
   }
 
   bootstrap(peer) {
     // Insert bootstrap peer into bucket
-    // and insert self into bootstrap peer's bucket
+    // then do a self-lookup
     this.buckets.insert(peer);
-    peer.rpc.ping(this);
+    this.find(this);
+
+    // This slows down the simulation considerably,
+    // so disabling
+    // this.buckets.refresh();
   }
 
-  find(peer) {
+  findNearest(peer) {
     let start = this.buckets.nearest(peer, config.alpha);
     let results = start.map((neighb) => {
       let best = [];
@@ -122,7 +129,11 @@ class Peer {
       }
       return best;
     }).flat();
-    results = sortDistance(results, peer).slice(0, config.k);
+    return sortDistance(results, peer).slice(0, config.k);
+  }
+
+  find(peer) {
+    let results = this.findNearest(peer);
     results = results.filter((p) => p.id == peer.id);
 
     // There may be malicious results
@@ -140,7 +151,7 @@ class Peer {
 class RPC {
   constructor(parentPeer, malicious) {
     this.peer = parentPeer;
-    this.malicious = malicious || false;
+    this.malicious = malicious;
   }
 
   ping(requestingPeer) {
@@ -157,7 +168,7 @@ class RPC {
 
     if (this.malicious) {
       let peer = new Peer(targetPeer.id);
-      peer.address = 'FAKE';
+      peer.address = this.address;
       return [peer];
     }
 
@@ -167,37 +178,4 @@ class RPC {
   }
 }
 
-const nodes = [];
-const nonmalicious = [];
-const bootstrapNode = new Peer();
-
-[...Array(config.n)].forEach((_) => {
-  let peer = Math.random() <= config.pMalicious ? new Peer(null, true) : new Peer();
-  peer.bootstrap(bootstrapNode);
-
-  if (!peer.malicious) {
-    nonmalicious.push(peer);
-  }
-
-  // Connect to other random nodes
-  if (nodes.length > 0) {
-    [...Array(config.initRandom)].forEach((_) => {
-      let node = randomChoice(nodes);
-      node.rpc.ping(peer);
-    });
-  }
-  nodes.push(peer);
-});
-
-let successes = [...Array(config.nTrials)].reduce((acc, _) => {
-  let sourceNode = randomChoice(nonmalicious);
-  let targetNode = randomChoice(nonmalicious);
-  while (targetNode == sourceNode) {
-    targetNode = randomChoice(nonmalicious);
-  }
-  let result = sourceNode.find(targetNode) !== 'FAKE' ? 1 : 0;
-  return acc + result;
-}, 0);
-console.log(`${((successes/100) * 100).toFixed(1)}%`);
-
-export default {};
+export default Peer;

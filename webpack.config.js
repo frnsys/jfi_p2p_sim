@@ -3,6 +3,7 @@ var path = require('path');
 module.exports = {
   entry: {
     'main': ['@babel/polyfill', './src/main'],
+    'worker': ['@babel/polyfill', './src/simWorker'],
   },
   output: {
     path: path.resolve(__dirname, 'dist'),

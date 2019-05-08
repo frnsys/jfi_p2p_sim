@@ -7,8 +7,6 @@ const D = 1;
 
 class Scene {
   constructor(opts) {
-    opts.width = window.innerWidth;
-    opts.height = window.innerHeight;
     this.opts = opts;
 
     this.scene = new THREE.Scene();
@@ -27,8 +25,6 @@ class Scene {
     this.camera.updateProjectionMatrix();
 
     window.addEventListener('resize', () => {
-      opts.width = window.innerWidth;
-      opts.height = window.innerHeight;
       let aspect = opts.width/opts.height;
       this.camera.left = -D * aspect;
       this.camera.right = D * aspect;
@@ -46,6 +42,13 @@ class Scene {
   render() {
     this.renderer.render(this.scene, this.camera);
   }
+
+  reset() {
+    for (let i = this.scene.children.length - 1; i >= 0; i--) {
+      if (this.scene.children[i].type === 'Mesh')
+        this.scene.remove(this.scene.children[i]);
+      }
+    }
 }
 
 export default Scene;
