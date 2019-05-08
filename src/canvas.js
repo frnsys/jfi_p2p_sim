@@ -3,7 +3,6 @@ const nodeTypes = {
   'sybil': '👹'
 };
 const fontSize = 16;
-const scale = 36;
 const dpr = window.devicePixelRatio || 1;
 
 function randomRangeFloat(min, max) {
@@ -112,14 +111,21 @@ class Canvas {
       400.0,  // Node repulsion
       0.5     // Damping
     );
+    layout.tick(0.01);
+    let bb = layout.getBoundingBox();
+    let padding = 40;
+    let width = bb.topright.x - bb.bottomleft.x;
+    let height = bb.topright.y - bb.bottomleft.y;
+    let scaleX = (this.width - padding*2)/width;
+    let scaleY = (this.height - padding*2)/height;
 
     // Adjust node positions
     layout.eachNode((node, point) => {
       let id = node.data.id;
       let n = this.nodes[id].node;
       let {x, y} = point.p;
-      x *= scale;
-      y *= scale;
+      x *= scaleX;
+      y *= scaleY;
       x += this.width/2;
       y += this.height/2;
       this.nodes[id].x = x;
