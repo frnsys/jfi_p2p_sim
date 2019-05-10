@@ -6,7 +6,7 @@ module.exports = {
     'worker': ['@babel/polyfill', './src/simWorker'],
   },
   output: {
-    path: path.resolve(__dirname, 'dist'),
+    path: path.resolve(__dirname, 'assets'),
     filename: '[name].js'
   },
   devServer: {

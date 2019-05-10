@@ -14,7 +14,7 @@ function setupDemo(id, social) {
   }, {});
   let result = element.querySelector('.result');
   let runButton = element.querySelector('.run');
-  let worker = new Worker('/assets/worker.js');
+  let worker = new Worker('assets/worker.js');
 
   let ready = true;
 
@@ -40,9 +40,10 @@ function setupDemo(id, social) {
             ready = true;
             runButton.disabled = false;
             clearInterval(animation);
-            view.annotate(d.results.foundNode, 'found');
+            let background = d.results.success ? '#0eb553' : '#ef2626'
+            view.annotate(d.results.foundNode, 'found', background);
             result.innerText = d.results.success ? 'Success' : 'Failure';
-            result.style.background = d.results.success ? '#0eb553' : '#ef2626';
+            result.style.background = background;
           } else {
             let node = view.nodes[view.nodesByAddress[step.from]];
             step.to.forEach((n) => {

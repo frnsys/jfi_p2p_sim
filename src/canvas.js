@@ -54,13 +54,14 @@ class Canvas {
     ctx.stroke();
   }
 
-  annotate(node, text) {
+  annotate(node, text, background) {
+    background = background || '#000';
     let s = 6;
     let ctx = this.layers.annos;
     let {x, y} = this.nodes[node.id];
     y -= fontSize/2;
 
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = background;
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(x-s, y-s);

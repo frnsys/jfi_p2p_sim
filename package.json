@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "main": "webpack.config.js",
   "scripts": {
-    "start": "webpack-dev-server --watch --progress --mode=development"
+    "start": "webpack-dev-server --watch --progress --mode=development",
+    "build": "NODE_ENV=production webpack --progress --colors -p"
   },
   "dependencies": {
     "@babel/polyfill": "^7.0.0",
